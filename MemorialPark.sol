@@ -1,8 +1,9 @@
 pragma solidity ^0.5.4;
 pragma experimental ABIEncoderV2;
 
-import "./ISacrifice.sol";
+import "./ID.sol";
 import "./IERC20.sol";
+import "./ISacrifice.sol";
 
 contract MemorialParker {
 
@@ -22,11 +23,13 @@ contract MemorialParker {
 
 	mapping(address => string[]) MemorialOwner;
 	mapping(address => string) OwnerName;
+	mapping(string => uint) _kv;
+	address _MemorialIDContract;
+	address _owner;
 
 	enum Relatives { MARRIAGE, FATHER, MOTHER, SON, DAUGHTER, OTHER}
 	struct RelationData {
 		string memorialID;
-		string name;
 		string otherRelation;
 		Relatives rType;
 	}
@@ -58,6 +61,20 @@ contract MemorialParker {
 	}
 
 	constructor( ) public {
+		_kv["name"] = 1;
+		_kv["nationality"] = 2;
+		_kv["birthTime"] = 3;
+		_kv["sleepTime"] = 4;
+		_kv["epitaph"] = 5;
+		_kv["phyAddress"] = 6;
+		_kv["introduction"] = 7;
+		_kv["picture"] = 8;
+		_owner = msg.sender;
+	}
+
+	function setIDContract(address addr) public {
+		require(msg.sender == _owner);
+		_MemorialIDContract = addr;
 	}
 
 	function createMemorial(
@@ -73,6 +90,9 @@ contract MemorialParker {
 	) public notInMemorialPark(_id) {
 		require(bytes(_id).length>=1 && bytes(_id).length<=128);
 		require(bytes(_name).length > 0);
+		address a = MemorialID(_MemorialIDContract).getMemorialID(_id);
+		require(a == address(0) || a == msg.sender);
+		MemorialID(_MemorialIDContract).addMemorialID(_id, msg.sender);
 		MemorialPark[_id] = Memorial(_name, _nationality, bt, st, epitaph, pha, introduction, pic, true);
 		currentNumber++;
 		string[] storage _owned = MemorialOwner[msg.sender];
@@ -84,51 +104,43 @@ contract MemorialParker {
 		MemorialOwner[msg.sender] = _tmp;
 	}
 
-	function updateMemorialName(string memory _id, string memory _name) public inMemorialPark(_id) ownedMemorial(_id) {
+	function updateMemorial(
+		string memory _id,
+		string[] memory _key,
+		string[] memory _value
+	) public ownedMemorial(_id) {
+		require(_key.length == _value.length);
 		Memorial memory _t = MemorialPark[_id];
-		_t.name = _name;
+		for (uint i=0; i<_key.length; i++) {
+			if (_kv[_key[i]] == 1) {
+				_t.name = _value[i];
+			}
+			if (_kv[_key[i]] == 2) {
+				_t.nationality = _value[i];
+			}
+
+			if (_kv[_key[i]] == 3) {
+				_t.birthTime = _value[i];
+			}
+			if (_kv[_key[i]] == 4) {
+				_t.sleepTime = _value[i];
+			}
+			if (_kv[_key[i]] == 5) {
+				_t.epitaph = _value[i];
+			}
+			if (_kv[_key[i]] == 6) {
+				_t.phyAddress = _value[i];
+			}
+			if (_kv[_key[i]] == 7) {
+				_t.introduction = _value[i];
+			}
+			if (_kv[_key[i]] == 8) {
+				_t.picture = _value[i];
+			}
+		}
+
 		MemorialPark[_id] = _t;
 	}
-
-	//function updateMemorialbirthTime(string memory _id, uint256 bt) public inMemorialPark(_id) ownedMemorial(_id) {
-	//	Memorial storage _t = MemorialPark[_id];
-	//	_t.birthTime = bt;
-	//	MemorialPark[_id] = _t;
-	//}
-
-	function updateMemorialsleepTime(string memory _id, string memory st) public inMemorialPark(_id) ownedMemorial(_id) {
-		Memorial memory _t = MemorialPark[_id];
-		_t.sleepTime = st;
-		MemorialPark[_id] = _t;
-	}
-
-	function updateMemorialphyAddress(string memory _id, string memory _paddress) public inMemorialPark(_id) ownedMemorial(_id) {
-		require(bytes(_paddress).length<200);
-		Memorial memory _t = MemorialPark[_id];
-		_t.phyAddress = _paddress;
-		MemorialPark[_id] = _t;
-	}
-
-	//function updateMemorialEpitaph(string memory _id, string memory _epitaph) public inMemorialPark(_id) ownedMemorial(_id) {
-	//	require(bytes(_epitaph).length<200);
-	//	Memorial memory _t = MemorialPark[_id];
-	//	_t.epitaph = _epitaph;
-	//	MemorialPark[_id] = _t;
-	//}
-
-	function updateMemorialIntroduction(string memory _id, string memory _introduction) public inMemorialPark(_id) ownedMemorial(_id) {
-		require(bytes(_introduction).length<2000);
-		Memorial memory _t = MemorialPark[_id];
-		_t.introduction = _introduction;
-		MemorialPark[_id] = _t;
-	}
-
-	//function updateMemorialPicture(string memory _id, string memory _picture) public inMemorialPark(_id) ownedMemorial(_id) {
-	//	require(bytes(_picture).length <4000);
-	//	Memorial memory _t = MemorialPark[_id];
-	//	_t.picture = _picture;
-	//	MemorialPark[_id] = _t;
-	//}
 
 	function getMemorial(string memory _id) public view returns (
 		string memory, string memory, string memory , string memory, string memory, string memory, string memory, string memory) {
@@ -143,7 +155,7 @@ contract MemorialParker {
 	//function deleteMemorial(string _id) {
 	//}
 
-	function addManager(string memory _id, string memory _name, address _addr) public inMemorialPark(_id) ownedMemorial(_id){
+	function addManager(string memory _id, string memory _name, address _addr) public ownedMemorial(_id){
 		string[] storage _owned = MemorialOwner[_addr];
 		string[] memory _tmp = new string[](_owned.length+1);
 		for (uint i=0; i<_owned.length; i++) {
@@ -175,18 +187,11 @@ contract MemorialParker {
 		string memory _id1,
 		Relatives _r,
 		string memory _otherRelation,
-		string memory _id2,
-		string memory _name
-	) public inMemorialPark(_id1) ownedMemorial(_id1) {
+		string memory _id2
+	) public inMemorialPark(_id1) inMemorialPark(_id2) ownedMemorial(_id1) {
 		require(_r >= Relatives.MARRIAGE && _r <= Relatives.OTHER);
-		if (bytes(_name).length == 0) {
-			require(MemorialPark[_id2].exist, "_id2 not in MemorialPark");
-		}
 		uint count = RelationCount[_id1];
-		Relations[_id1][count] = RelationData("", _name, "", _r);
-		if (MemorialPark[_id2].exist) {
-			Relations[_id1][count].memorialID = _id2;
-		}
+		Relations[_id1][count] = RelationData(_id2, "", _r);
 		if (_r == Relatives.OTHER) {
 			Relations[_id1][count].otherRelation = _otherRelation;
 		}
@@ -197,15 +202,51 @@ contract MemorialParker {
 		string[] memory _id1,
 		Relatives[] memory _r,
 		string[] memory _others,
-		string[] memory _id2,
-		string[] memory _name
+		string[] memory _id2
 	) public {
-		require(_id1.length == _r.length, "Missmatched input lengths");
-		require(_r.length == _id2.length, "Missmatched input lengths");
-		require(_others.length == _id2.length, "Missmatched input lengths");
-		require(_name.length == _others.length, "Missmatched input lengths");
+		require(_id1.length == _r.length);
+		require(_r.length == _id2.length);
+		require(_others.length == _id2.length);
 		for (uint256 i=0; i<_id1.length; i++) {
-			addRelation(_id1[i], _r[i], _others[i], _id2[i], _name[i]);
+			addRelation(_id1[i], _r[i], _others[i], _id2[i]);
+		}
+	}
+
+	function updateRelation(
+		string memory _id1,
+		uint _idx,
+		string memory _others
+	) ownedMemorial(_id1) public {
+		require(_idx <RelationCount[_id1]);
+		require(Relations[_id1][_idx].rType == Relatives.OTHER);
+		Relations[_id1][_idx].otherRelation = _others;
+	}
+
+	function updateRelationMulti(
+		string[] memory _ids,
+		uint[] memory _idxs,
+		string[] memory _others
+	) public {
+		require(_ids.length == _idxs.length);
+		require(_idxs.length == _others.length);
+		for (uint256 i=0; i<_ids.length; i++) {
+			updateRelation(_ids[i], _idxs[i], _others[i]);
+		}
+
+	}
+
+	//function approveRelation() {}
+	//store_money
+
+	function deleteRelation(string memory _id, uint _idx) ownedMemorial(_id) public {
+		require(_idx <RelationCount[_id]);
+		delete Relations[_id][_idx];
+	}
+
+	function deleteRelationMulti(string[] memory _ids, uint[] memory _idxs) public {
+		require(_ids.length == _idxs.length);
+		for (uint256 i=0; i<_ids.length; i++) {
+			deleteRelation(_ids[i], _idxs[i]);
 		}
 	}
 
@@ -218,25 +259,21 @@ contract MemorialParker {
 
 	function getRelations(
 		string memory _id
-	) public view returns (Relatives[] memory, string[] memory, string[] memory, string[] memory) {
+	) public view returns (Relatives[] memory, string[] memory, string[] memory, uint[] memory) {
 		uint num = RelationCount[_id];
 		Relatives[] memory _r = new Relatives[](num);
 		string[] memory _others = new string[](num);
 		string[] memory _ids = new string[](num);
-		string[] memory _names = new string[](num);
+		uint[] memory _idxs = new uint[](num);
 		for (uint i=0; i<num; i++) {
 			_r[i] = Relations[_id][i].rType;
 			_others[i] = Relations[_id][i].otherRelation;
 			_ids[i] = Relations[_id][i].memorialID;
-			_names[i] = Relations[_id][i].name;
+			_idxs[i] = i;
 		}
 
-		return (_r, _others, _ids, _names);
+		return (_r, _others, _ids, _idxs);
 	}
-
-	//function deleteRelation(bytes32 _id1, Relation _r, bytes32 _id2) {
-	//}
-
 
 	//sacrifice
 	mapping(uint => address) sacrifice_contract;
@@ -245,15 +282,17 @@ contract MemorialParker {
 
 	function registerSacrifice(address _sacrificeContract) public {
 		require(sacrifice_owner[_sacrificeContract] != address(0));
-		string memory _sa = ISacrifice(_sacrificeContract).getSacrifice();
-		require(bytes(_sa).length < 1000 && bytes(_sa).length>0, "sacrifice data is invalid");
+		string memory _sa;
+		string memory _sn;
+		(_sn, _sa) = ISacrifice(_sacrificeContract).getSacrifice();
+		require(bytes(_sa).length < 1000 && bytes(_sa).length>0);
 		address _erc20;
 		uint _price;
 		(_erc20,_price) = ISacrifice(_sacrificeContract).getPrice();
 		require(IERC20(_erc20).transferFrom(msg.sender, address(this), _price));
 		require(IERC20(_erc20).approve(address(_sacrificeContract), _price));
 		_sa = ISacrifice(_sacrificeContract).buySacrifice();
-		require(bytes(_sa).length < 1000 && bytes(_sa).length>0, "sacrifice data is invalid");
+		require(bytes(_sa).length < 1000 && bytes(_sa).length>0);
 		sacrifice_contract[sacrificeCount] = _sacrificeContract;
 		sacrificeCount++;
 		sacrifice_owner[_sacrificeContract] = msg.sender;
@@ -276,7 +315,7 @@ contract MemorialParker {
 		return adds;
 	}
 
-	function getSacrifice(address _ad) public view returns (string memory) {
+	function getSacrifice(address _ad) public view returns (string memory, string memory) {
 		return ISacrifice(_ad).getSacrifice();
 	}
 

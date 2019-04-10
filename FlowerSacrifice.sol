@@ -6,6 +6,7 @@ import "./ISacrifice.sol";
 contract FlowerSacrifice is ISacrifice {
 	uint private _price;
 	address private _erc20Address;
+	string private _name;
 	string private _flower;
 	address public _owner;
 
@@ -22,14 +23,15 @@ contract FlowerSacrifice is ISacrifice {
 		_price = _p;
 	}
 
-	function updateFlower(string memory _f) public {
+	function updateFlower(string memory _nm, string memory _f) public {
 		require(_owner == msg.sender);
 		require(bytes(_f).length<1000 && bytes(_f).length>0);
 		_flower = _f;
+		_name = _nm;
 	}
 
-	function getSacrifice() external view returns (string memory ){
-		return _flower;
+	function getSacrifice() external view returns (string memory, string memory){
+		return (_name, _flower);
 	}
 
 	function getPrice() external view returns (address, uint) {
