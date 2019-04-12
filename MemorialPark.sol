@@ -7,36 +7,12 @@ import "./ISacrifice.sol";
 
 contract MemorialParker {
 
-	struct Memorial {
-		string name;
-		string nationality;
-		string birthTime;
-		string sleepTime;
-		string epitaph;
-		string phyAddress;
-		string introduction;
-		string picture;
-		bool exist;
-	}
-
-	mapping(string => Memorial) MemorialPark;
-
-	mapping(address => string[]) MemorialOwner;
-	mapping(address => string) OwnerName;
-	mapping(string => uint) _kv;
-	address _MemorialIDContract;
+	address _MemorialID;
+	address _MemorialStore;
+	address _RelationStore;
+	address _SacrificeStore;
 	address _owner;
 
-	enum Relatives { MARRIAGE, FATHER, MOTHER, SON, DAUGHTER, OTHER}
-	struct RelationData {
-		string memorialID;
-		string otherRelation;
-		Relatives rType;
-	}
-	mapping(string => mapping(uint => RelationData)) Relations; 
-	mapping(string => uint) RelationCount;
-
-	uint256 public currentNumber;
 
 	modifier inMemorialPark(string memory _id) {
 		require(MemorialPark[_id].exist, "Memorial does not exist");
@@ -61,20 +37,25 @@ contract MemorialParker {
 	}
 
 	constructor( ) public {
-		_kv["name"] = 1;
-		_kv["nationality"] = 2;
-		_kv["birthTime"] = 3;
-		_kv["sleepTime"] = 4;
-		_kv["epitaph"] = 5;
-		_kv["phyAddress"] = 6;
-		_kv["introduction"] = 7;
-		_kv["picture"] = 8;
 		_owner = msg.sender;
 	}
 
 	function setIDContract(address addr) public {
 		require(msg.sender == _owner);
-		_MemorialIDContract = addr;
+		_MemorialID = addr;
+	}
+
+	function setMemorialStore(address addr) public {
+		require(msg.sender == _owner);
+		_MemorialStore = addr;
+	}
+	function setRelationStore(address addr) public {
+		require(msg.sender == _owner);
+		_RelationStore = addr;
+	}
+	function setSacrificeStore(address addr) public {
+		require(msg.sender == _owner);
+		_SacrificeStore = addr;
 	}
 
 	function createMemorial(
@@ -87,21 +68,14 @@ contract MemorialParker {
 		string memory pha,
 		string memory introduction,
 		string memory pic
-	) public notInMemorialPark(_id) {
+	) public {
 		require(bytes(_id).length>=1 && bytes(_id).length<=128);
 		require(bytes(_name).length > 0);
-		address a = MemorialID(_MemorialIDContract).getMemorialID(_id);
+		require(!MemorialStore(_MemorialStore).exists(_id));
+		address a = MemorialID(_MemorialID).getMemorialID(_id);
 		require(a == address(0) || a == msg.sender);
-		MemorialID(_MemorialIDContract).addMemorialID(_id, msg.sender);
-		MemorialPark[_id] = Memorial(_name, _nationality, bt, st, epitaph, pha, introduction, pic, true);
-		currentNumber++;
-		string[] storage _owned = MemorialOwner[msg.sender];
-		string[] memory _tmp = new string[](_owned.length+1);
-		for (uint i=0; i<_owned.length; i++) {
-			_tmp[i] = _owned[i];
-		}
-		_tmp[_owned.length] = _id;
-		MemorialOwner[msg.sender] = _tmp;
+		MemorialID(_MemorialID).addMemorialID(_id, msg.sender);
+		MemorialStore(_MemorialStore).createMemorial(_name, _nationality, bt, st, epitaph, pha, introduction, pic, true, msg.sender);
 	}
 
 	function updateMemorial(
@@ -110,36 +84,8 @@ contract MemorialParker {
 		string[] memory _value
 	) public ownedMemorial(_id) {
 		require(_key.length == _value.length);
-		Memorial memory _t = MemorialPark[_id];
-		for (uint i=0; i<_key.length; i++) {
-			if (_kv[_key[i]] == 1) {
-				_t.name = _value[i];
-			}
-			if (_kv[_key[i]] == 2) {
-				_t.nationality = _value[i];
-			}
-
-			if (_kv[_key[i]] == 3) {
-				_t.birthTime = _value[i];
-			}
-			if (_kv[_key[i]] == 4) {
-				_t.sleepTime = _value[i];
-			}
-			if (_kv[_key[i]] == 5) {
-				_t.epitaph = _value[i];
-			}
-			if (_kv[_key[i]] == 6) {
-				_t.phyAddress = _value[i];
-			}
-			if (_kv[_key[i]] == 7) {
-				_t.introduction = _value[i];
-			}
-			if (_kv[_key[i]] == 8) {
-				_t.picture = _value[i];
-			}
-		}
-
-		MemorialPark[_id] = _t;
+		require(MemorialStore(_MemorialStore).isOwner(msg.sender, _id));
+		MemorialStore(_MemorialStore).updateMemorial(_id, _key, _value);
 	}
 
 	function getMemorial(string memory _id) public view returns (
@@ -261,15 +207,25 @@ contract MemorialParker {
 		string memory _id
 	) public view returns (Relatives[] memory, string[] memory, string[] memory, uint[] memory) {
 		uint num = RelationCount[_id];
-		Relatives[] memory _r = new Relatives[](num);
-		string[] memory _others = new string[](num);
-		string[] memory _ids = new string[](num);
-		uint[] memory _idxs = new uint[](num);
+		uint n = 0;
 		for (uint i=0; i<num; i++) {
-			_r[i] = Relations[_id][i].rType;
-			_others[i] = Relations[_id][i].otherRelation;
-			_ids[i] = Relations[_id][i].memorialID;
-			_idxs[i] = i;
+			if (bytes(Relations[_id][i].memorialID).length != 0) {
+				n++;
+			}
+		}
+		Relatives[] memory _r = new Relatives[](n);
+		string[] memory _others = new string[](n);
+		string[] memory _ids = new string[](n);
+		uint[] memory _idxs = new uint[](n);
+		n = 0;
+		for (uint i=0; i<num; i++) {
+			if (bytes(Relations[_id][i].memorialID).length != 0) {
+				_r[n] = Relations[_id][i].rType;
+				_others[n] = Relations[_id][i].otherRelation;
+				_ids[n] = Relations[_id][i].memorialID;
+				_idxs[n] = i;
+				n++;
+			}
 		}
 
 		return (_r, _others, _ids, _idxs);
@@ -281,7 +237,7 @@ contract MemorialParker {
 	uint public sacrificeCount;
 
 	function registerSacrifice(address _sacrificeContract) public {
-		require(sacrifice_owner[_sacrificeContract] != address(0));
+		require(sacrifice_owner[_sacrificeContract] == address(0));
 		string memory _sa;
 		string memory _sn;
 		(_sn, _sa) = ISacrifice(_sacrificeContract).getSacrifice();
