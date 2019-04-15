@@ -23,6 +23,7 @@ contract MemorialStore {
 
 	mapping(address => string[]) MemorialOwner;
 	mapping(address => string) OwnerName;
+	mapping(string => uint) _kv;
 	address _MemorialContract;
 	address _owner;
 	uint256 public currentNumber;
@@ -41,7 +42,7 @@ contract MemorialStore {
 
 	function setIDContract(address addr) public {
 		require(msg.sender == _owner);
-		_MemorialIDContract = addr;
+		_MemorialContract = addr;
 	}
 
 	function createMemorial(
@@ -68,11 +69,11 @@ contract MemorialStore {
 		MemorialOwner[_addr] = _tmp;
 	}
 
-	function exists(string memory _id) public {
+	function exists(string memory _id) public view returns (bool) {
 		return MemorialPark[_id].exist;
 	}
 
-	function isOwner(address _addr, string memory _id) public returns (bool) {
+	function isOwner(address _addr, string memory _id) public view returns (bool) {
 		bool flag = false;
 		string[] memory _tmp = MemorialOwner[_addr];
 		for (uint i=0; i<_tmp.length; i++){
@@ -87,7 +88,7 @@ contract MemorialStore {
 		string memory _id,
 		string[] memory _key,
 		string[] memory _value
-	) public ownedMemorial(_id) {
+	) public {
 		require(msg.sender == _MemorialContract);
 		Memorial memory _t = MemorialPark[_id];
 		for (uint i=0; i<_key.length; i++) {
@@ -134,7 +135,8 @@ contract MemorialStore {
 	//function deleteMemorial(string _id) {
 	//}
 
-	function addManager(string memory _id, string memory _name, address _addr) public ownedMemorial(_id){
+	function addManager(string memory _id, string memory _name, address _addr) public {
+		require(msg.sender == _MemorialContract);
 		string[] storage _owned = MemorialOwner[_addr];
 		string[] memory _tmp = new string[](_owned.length+1);
 		for (uint i=0; i<_owned.length; i++) {

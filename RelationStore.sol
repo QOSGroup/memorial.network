@@ -78,6 +78,7 @@ contract RelationStore {
 		uint[] memory _idxs,
 		string[] memory _others
 	) public {
+		require(_MemorialContract == msg.sender);
 		require(_ids.length == _idxs.length);
 		require(_idxs.length == _others.length);
 		for (uint256 i=0; i<_ids.length; i++) {
