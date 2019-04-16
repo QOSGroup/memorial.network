@@ -34,21 +34,35 @@ contract RelationDeposit {
 		_depositAmount = amt;
 	}
 
-	function withdraw() public {
+	function getDepositFee() public view returns (uint) {
+		return _depositAmount;
+	}
+
+	function deposit(address _addr) payable public  {
+		require(msg.sender == _contract);
+		_deposit[_addr] = _deposit[_addr] + msg.value;
+	}
+
+	function withdraw(uint amount) public {
 		require(msg.sender == _withdraw1 || msg.sender == _withdraw2);
-		msg.sender.transfer(5);
+		msg.sender.transfer(amount);
 	}
 
-	function deposit() payable public  {
-		_deposit[msg.sender] = msg.value;
-	}
-
-	function getDeposit(address addr) public view {
+	function getDeposit(address addr) public view returns (uint) {
 		return _deposit[addr];
 	}
 
-	function transfer(uint amount, address addr) public {
+	function takeDeposit(uint amount, address addr) public {
 		require(msg.sender == _contract);
+		require(amount <= _deposit[addr]);
+		_deposit[addr] = _deposit[addr] - amount;
+
+	}
+
+	function refundDeposit(uint amount, address payable addr) public {
+		require(msg.sender == _contract);
+		require(amount <= _deposit[addr]);
+		_deposit[addr] = _deposit[addr] - amount;
 		addr.transfer(amount);
 
 	}

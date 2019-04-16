@@ -108,32 +108,108 @@ contract MemorialParker {
 	// enum Relatives { MARRIAGE, FATHER, MATHER, SON, DAUGHTER, OTHER};
 	// mapping(string => (mapping(uint => RelationData))) Relations; 
 	// mapping(string => uint) RelationCount;
-	function addRelation(
+	function _addRelation(
 		string memory _id1,
-		Relatives _r,
+		RelationStore.Relatives _r,
 		string memory _otherRelation,
 		string memory _id2
-	) public inMemorialPark(_id1) inMemorialPark(_id2) ownedMemorial(_id1) {
-		require(_r >= Relatives.MARRIAGE && _r <= Relatives.OTHER);
-		uint count = RelationCount[_id1];
-		Relations[_id1][count] = RelationData(_id2, "", _r);
-		if (_r == Relatives.OTHER) {
-			Relations[_id1][count].otherRelation = _otherRelation;
+	) public {
+		require(RelationStore(_RelationStore).isValid(_r));
+		require(MemorialStore(_MemorialStore).isOwner(msg.sender, _id1));
+		require(MemorialStore(_MemorialStore).exists(_id2));
+		if (MemorialStore(_MemorialStore).isOwner(msg.sender, _id2)) {
+			RelationStore(_RelationStore).addOwnedRelation(_id1, _r, _otherRelation, _id2);
+		} else {
+			RelationStore(_RelationStore).addRelation(_id1, _r, _otherRelation, _id2, msg.sender);
 		}
-		RelationCount[_id1] = count + 1;
 	}
 
 	function addRelationMulti(
 		string[] memory _id1,
-		Relatives[] memory _r,
+		RelationStore.Relatives[] memory _r,
 		string[] memory _others,
 		string[] memory _id2
-	) public {
+	) public payable {
 		require(_id1.length == _r.length);
 		require(_r.length == _id2.length);
 		require(_others.length == _id2.length);
+		uint n;
 		for (uint256 i=0; i<_id1.length; i++) {
-			addRelation(_id1[i], _r[i], _others[i], _id2[i]);
+			if (!MemorialStore(_MemorialStore).isOwner(msg.sender, _id2[i])) {
+				n++;
+			}
+		}
+		require(n*RelationDeposit(_RelationDeposit).getDepositFee() == msg.value);
+
+		for (uint256 i=0; i<_id1.length; i++) {
+			_addRelation(_id1[i], _r[i], _others[i], _id2[i]);
+		}
+		RelationDeposit(_RelationDeposit).deposit.value(msg.value)(msg.sender);
+	}
+
+	function acceptRelation(
+		string memory _id1,
+		RelationStore.Relatives _r,
+		uint _idx,
+		string memory _id2
+	) public {
+		require(MemorialStore(_MemorialStore).isOwner(msg.sender, _id2));
+		string memory id2;
+		RelationStore.Relatives r2;
+		(id2, r2) = RelationStore(_RelationStore).getRelation(_id1, _idx);
+		require(r2 == _r);
+		require(keccak256(abi.encodePacked(_id2)) == keccak256(abi.encodePacked(id2)));
+		RelationStore(_RelationStore).updateStatus(_id1, _idx, RelationStore.Status.APPROVED);
+		address payable _addr = RelationStore(_RelationStore).getRequestSender(_id1, _id2);
+		RelationStore(_RelationStore).deleteRequest(_id1, _id2);
+		uint _fee = RelationDeposit(_RelationDeposit).getDepositFee();
+		RelationDeposit(_RelationDeposit).refundDeposit(_fee, _addr);
+	}
+
+	function acceptRelationMulti(
+		string[] memory _id1s,
+		RelationStore.Relatives[] memory _rs,
+		uint[] memory _idxs,
+		string[] memory _id2s
+	) public {
+		require(_id1s.length == _rs.length);
+		require(_rs.length == _idxs.length);
+		require(_idxs.length == _id2s.length);
+		for (uint256 i=0; i<_id1s.length; i++) {
+			acceptRelation(_id1s[i], _rs[i], _idxs[i], _id2s[i]);
+		}
+	}
+
+	function rejectRelation(
+		string memory _id1,
+		RelationStore.Relatives _r,
+		uint _idx,
+		string memory _id2
+	) public  {
+		require(MemorialStore(_MemorialStore).isOwner(msg.sender, _id2));
+		string memory id2;
+		RelationStore.Relatives r2;
+		(id2, r2) = RelationStore(_RelationStore).getRelation(_id1, _idx);
+		require(r2 == _r);
+		require(keccak256(abi.encodePacked(_id2)) == keccak256(abi.encodePacked(id2)));
+		RelationStore(_RelationStore).updateStatus(_id1, _idx, RelationStore.Status.REJECTED);
+		address _addr = RelationStore(_RelationStore).getRequestSender(_id1, _id2);
+		RelationStore(_RelationStore).deleteRequest(_id1, _id2);
+		uint _fee = RelationDeposit(_RelationDeposit).getDepositFee();
+		RelationDeposit(_RelationDeposit).takeDeposit(_fee, _addr);
+	}
+
+	function rejectRelationMulti(
+		string[] memory _id1s,
+		RelationStore.Relatives[] memory _rs,
+		uint[] memory _idxs,
+		string[] memory _id2s
+	) public {
+		require(_id1s.length == _rs.length);
+		require(_rs.length == _idxs.length);
+		require(_idxs.length == _id2s.length);
+		for (uint256 i=0; i<_id1s.length; i++) {
+			rejectRelation(_id1s[i], _rs[i], _idxs[i], _id2s[i]);
 		}
 	}
 
@@ -141,10 +217,10 @@ contract MemorialParker {
 		string memory _id1,
 		uint _idx,
 		string memory _others
-	) ownedMemorial(_id1) public {
-		require(_idx <RelationCount[_id1]);
-		require(Relations[_id1][_idx].rType == Relatives.OTHER);
-		Relations[_id1][_idx].otherRelation = _others;
+	) public {
+		require(MemorialStore(_MemorialStore).isOwner(msg.sender, _id1));
+		require(RelationStore(_RelationStore).canUpdate(_id1, _idx));
+		RelationStore(_RelationStore).updateRelation(_id1, _idx, _others);
 	}
 
 	function updateRelationMulti(
@@ -163,9 +239,9 @@ contract MemorialParker {
 	//function approveRelation() {}
 	//store_money
 
-	function deleteRelation(string memory _id, uint _idx) ownedMemorial(_id) public {
-		require(_idx <RelationCount[_id]);
-		delete Relations[_id][_idx];
+	function deleteRelation(string memory _id, uint _idx) public {
+		require(MemorialStore(_MemorialStore).isOwner(msg.sender, _id));
+		RelationStore(_RelationStore).deleteRelation(_id, _idx);
 	}
 
 	function deleteRelationMulti(string[] memory _ids, uint[] memory _idxs) public {
@@ -178,45 +254,22 @@ contract MemorialParker {
 	//TODU:Add relation will charge fee
 	// nogify memorial owner that request new relaions
 
-	function getRelationCount(string memory _id) public view returns (uint) {
-		return RelationCount[_id];
-	}
-
 	function getRelations(
 		string memory _id
-	) public view returns (Relatives[] memory, string[] memory, string[] memory, uint[] memory) {
-		uint num = RelationCount[_id];
-		uint n = 0;
-		for (uint i=0; i<num; i++) {
-			if (bytes(Relations[_id][i].memorialID).length != 0) {
-				n++;
-			}
-		}
-		Relatives[] memory _r = new Relatives[](n);
-		string[] memory _others = new string[](n);
-		string[] memory _ids = new string[](n);
-		uint[] memory _idxs = new uint[](n);
-		n = 0;
-		for (uint i=0; i<num; i++) {
-			if (bytes(Relations[_id][i].memorialID).length != 0) {
-				_r[n] = Relations[_id][i].rType;
-				_others[n] = Relations[_id][i].otherRelation;
-				_ids[n] = Relations[_id][i].memorialID;
-				_idxs[n] = i;
-				n++;
-			}
-		}
-
-		return (_r, _others, _ids, _idxs);
+	) public view returns (
+	RelationStore.Relatives[] memory,
+	string[] memory, string[] memory,
+	uint[] memory,
+	RelationStore.Status[] memory) {
+		return RelationStore(_RelationStore).getRelations(_id);
 	}
 
-	//sacrifice
-	mapping(uint => address) sacrifice_contract;
-	mapping(address => address) sacrifice_owner;
-	uint public sacrificeCount;
+	function getRequestRelations(string memory _id) public view returns (string[] memory, uint[] memory) {
+		return RelationStore(_RelationStore).getRequestRelations(_id);
+	}
 
 	function registerSacrifice(address _sacrificeContract) public {
-		require(sacrifice_owner[_sacrificeContract] == address(0));
+		require(!SacrificeStore(_SacrificeStore).exists(_sacrificeContract));
 		string memory _sa;
 		string memory _sn;
 		(_sn, _sa) = ISacrifice(_sacrificeContract).getSacrifice();

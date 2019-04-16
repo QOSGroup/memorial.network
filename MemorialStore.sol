@@ -24,11 +24,11 @@ contract MemorialStore {
 	mapping(address => string[]) MemorialOwner;
 	mapping(address => string) OwnerName;
 	mapping(string => uint) _kv;
-	address _MemorialContract;
-	address _owner;
+	address public _MemorialContract;
+	address public _owner;
 	uint256 public currentNumber;
 
-	function contructor() public {
+	constructor() public {
 		_kv["name"] = 1;
 		_kv["nationality"] = 2;
 		_kv["birthTime"] = 3;
@@ -40,7 +40,7 @@ contract MemorialStore {
 		_owner = msg.sender;
 	}
 
-	function setIDContract(address addr) public {
+	function setContract(address addr) public {
 		require(msg.sender == _owner);
 		_MemorialContract = addr;
 	}
@@ -152,7 +152,8 @@ contract MemorialStore {
 		string memory _id,
 		string[] memory _name,
 		address[] memory _addr
-	) public inMemorialPark(_id) ownedMemorial(_id) {
+	) public {
+		require(msg.sender == _MemorialContract);
 		require(_name.length == _addr.length);
 		for (uint i=0; i<_name.length; i++) {
 			addManager(_id, _name[i], _addr[i]);
