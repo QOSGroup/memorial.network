@@ -217,4 +217,10 @@ contract RelationStore {
 		return (_r, _others, _ids, _idxs, _status);
 	}
 
+	function getRelationStatus(string memory _id, uint _idx) public view returns (Status) {
+		require(_MemorialContract == msg.sender);
+		require(_idx <RelationCount[_id]);
+		return Relations[_id][_idx].status;
+	}
+
 }

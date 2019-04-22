@@ -5,7 +5,7 @@ contract RelationDeposit {
 	mapping(address => uint) _deposit;
 	address _owner1;
 	address _owner2;
-	address _withdraw1;
+	address payable _withdraw1;
 	address _withdraw2;
 	address _contract;
 
@@ -56,7 +56,7 @@ contract RelationDeposit {
 		require(msg.sender == _contract);
 		require(amount <= _deposit[addr]);
 		_deposit[addr] = _deposit[addr] - amount;
-
+		_withdraw1.transfer(amount);
 	}
 
 	function refundDeposit(uint amount, address payable addr) public {

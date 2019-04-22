@@ -139,7 +139,7 @@ contract MemorialParker {
 				n++;
 			}
 		}
-		require(n*RelationDeposit(_RelationDeposit).getDepositFee() == msg.value);
+		require(n*RelationDeposit(_RelationDeposit).getDepositFee() <= msg.value);
 
 		for (uint256 i=0; i<_id1.length; i++) {
 			_addRelation(_id1[i], _r[i], _others[i], _id2[i]);
@@ -241,7 +241,18 @@ contract MemorialParker {
 
 	function deleteRelation(string memory _id, uint _idx) public {
 		require(MemorialStore(_MemorialStore).isOwner(msg.sender, _id));
+
+		if (RelationStore(_RelationStore).getRelationStatus(_id, _idx) == RelationStore.Status.REQUESTED) {
+			string memory id2;
+			RelationStore.Relatives r2;
+			(id2, r2) = RelationStore(_RelationStore).getRelation(_id, _idx);
+			RelationStore(_RelationStore).deleteRequest(_id, id2);
+			address payable _addr = RelationStore(_RelationStore).getRequestSender(_id, id2);
+			uint _fee = RelationDeposit(_RelationDeposit).getDepositFee();
+			RelationDeposit(_RelationDeposit).refundDeposit(_fee, _addr);
+		}
 		RelationStore(_RelationStore).deleteRelation(_id, _idx);
+
 	}
 
 	function deleteRelationMulti(string[] memory _ids, uint[] memory _idxs) public {
